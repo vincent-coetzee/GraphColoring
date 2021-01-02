@@ -13,7 +13,7 @@ public class Graph
             
         public var id:String = ""
         public var edges:Array<Edge> = []
-        public var color = Color.none
+        public var color:Color = .none
         
         init(id:String)
             {
@@ -74,33 +74,16 @@ public class Graph
         case blue = 5
         case indigo = 6
         case violet = 7
-        case error = 8
         
-        static var first:Color
+        var name:String
             {
-            return(Color.red)
-            }
-            
-        func nextLowest() -> Color
-            {
-            let index = min(self.rawValue + 1,Color.error.rawValue)
-            return(Color(rawValue:index)!)
-            }
-         
-        static func nextLowestUnusedColor(excluding set:Set<Color>) -> Color
-            {
-            var index = Color.none.rawValue
-            for color in set
-                {
-                index = max(index,color.rawValue)
-                }
-            index = min(index + 1,Color.error.rawValue)
-            return(Color(rawValue:index)!)
+            return("\(self)")
             }
         }
         
     var nodes:[String:Node] = [:]
-        
+    var linearNodes:[Node] = []
+    
     func nodesAdjacent(to node:Node) -> Array<Node>
         {
         var nodes = node.edges.map{$0.to}
@@ -111,27 +94,11 @@ public class Graph
             }
         return(nodes)
         }
-            
-    func uniqueColorsAdjacent(to node:Node) -> Set<Color>
+        
+    func nodesOrderedById() -> Array<Node>
         {
-        var colors = Set<Color>()
-        print("Adjacent nodes for \(node.id) are \(self.nodesAdjacent(to:node).map{$0.id})")
-        for other in self.nodesAdjacent(to:node)
-            {
-            colors.insert(other.color)
-            }
-        var allEdges = Array<Edge>(node.edges)
-        for aNode in self.nodesAdjacent(to:node)
-            {
-            let otherEdges = aNode.edges.filter{$0.from == node || $0.to == node}
-            allEdges.append(contentsOf: otherEdges)
-            }
-        print("Edges for \(node.id) are")
-        for edge in allEdges
-            {
-            print("\tEDGE(\(edge.from.id),\(edge.to.id))")
-            }
-        return(colors)
+        let list = self.nodes.values.sorted{$0.id < $1.id}
+        return(Array<Node>(list))
         }
             
     func initGraph()
@@ -171,57 +138,111 @@ public class Graph
             }
         fromNode.addEdge(edge)
         }
+    //
+    // This is a recursive algorithm
+    //
+    func resursivelyColorGraph() throws
+        {
+        self.linearNodes = self.nodesOrderedById()
+        self.linearNodes[0].color = Color.red
+        try self.colorGraph(vertexCount:1)
+        }
         
-    func colorGraph() throws
+    func colorGraph(vertexCount:Int) throws -> Bool
         {
-        var allNodes = Array(self.nodes.values).sorted{$0.id < $1.id}
-        let first = allNodes.first!
-        allNodes = allNodes.withoutFirst()
-        first.color = Color.first
-        print("Coloring node \(first.id) as \(first.color)")
-        while !allNodes.isEmpty
+        if vertexCount >= self.linearNodes.count
             {
-            let node = allNodes.first!
-            allNodes = allNodes.withoutFirst()
-            print("Removing \(node.id) from \(allNodes.map{$0.id})")
-            let adjacentColors = self.uniqueColorsAdjacent(to:node)
-            print("Adjacent unique colors are for \(node.id) of color \(node.color)")
-            for color in adjacentColors
+            print("\(vertexCount) done finished recursing")
+            return(false)
+            }
+        let vertex = self.linearNodes[vertexCount]
+        var colorSet = Set<Color>(Color.allCases)
+        colorSet.remove(Color.none)
+        print("About to loop over vertexcount to check colors")
+        print("vertexCount - 1 = \(vertexCount - 1)")
+        for uIndex in 1..<vertexCount
+            {
+            let uNode = self.linearNodes[uIndex]
+            let nodes = self.nodesAdjacent(to: vertex)
+            if nodes.contains(uNode)
                 {
-                print("\t\(color)")
-                }
-            let nextColor = Color.nextLowestUnusedColor(excluding: adjacentColors)
-            print("Next lowest unused color is \(nextColor)")
-            node.color = nextColor
-            print("Setting color of \(node.id) to \(nextColor)")
-            if nextColor == Color.error
-                {
-                throw(ColoringError.notEnoughColors)
+                colorSet.remove(uNode.color)
                 }
             }
-        for node in self.nodes.values
+        for color in colorSet
             {
-            print("Color of node \(node.id) is \(node.color)")
+            vertex.color = color
+            if try !self.colorGraph(vertexCount: vertexCount + 1)
+                {
+                return(false)
+                }
+            }
+        return(false)
+        }
+        
+    func sequentiallyColor() throws
+        {
+        // order nodes into some arbitary but staple sequence
+        self.linearNodes = self.nodesOrderedById()
+        // mark all nodes as uncolored
+        for node in self.linearNodes
+            {
+            node.color = .none
+            }
+        self.linearNodes[0].color = .red
+        for index in stride(from: self.linearNodes.count-1, to: 0, by:-1)
+            {
+            let vertex = self.linearNodes[index]
+            print("Vertex \(vertex.id)")
+            let adjacents = self.nodesAdjacent(to: vertex)
+            print("Adjacents to vertex=\(vertex.id) are ",terminator:"")
+            for adjacent in adjacents
+                {
+                print("\(adjacent.id) ",terminator:"")
+                }
+            var usedColors = Set<Color>()
+            for adjacent in adjacents
+                {
+                usedColors.insert(adjacent.color)
+                }
+            usedColors.remove(.none)
+            let names = usedColors.map{$0.name}
+            print()
+            print("Used colors for vi(\(vertex.id)) are \(names)")
+            var someColors = Array<Color>(Color.allCases)
+            someColors.remove(at:0)
+            for usedColor in usedColors
+                {
+                someColors.removeAll(where: {$0 == usedColor})
+                }
+            let color = someColors.first!
+            print("Setting vertex color to \(color)")
+            vertex.color = color
             }
         }
     }
 
-extension Array where Element == Graph.Node
+    
+func main()
     {
-    func withoutFirst() -> Array<Element>
+    let graph = Graph()
+    graph.initGraph()
+    do
         {
-        return(Array(self.dropFirst()))
+        try graph.sequentiallyColor()
+        }
+    catch let error
+        {
+        print("Error is \(error)")
+        }
+    for node in graph.nodesOrderedById()
+        {
+        print("NODE[\(node.id)] color is \(node.color))")
         }
     }
+    
+main()
 
 
-let graph = Graph()
-graph.initGraph()
-do
-    {
-    try graph.colorGraph()
-    }
-catch let error
-    {
-    print("Error is \(error)")
-    }
+
+
