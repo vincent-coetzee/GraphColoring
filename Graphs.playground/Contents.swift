@@ -115,7 +115,6 @@ public class Graph
         self.addEdge(from:"E",to:"F")
         }
         
-        
     func newOrExistingNodeWithId(_ id:String) -> Node
         {
         if let node = self.nodes[id]
@@ -180,7 +179,7 @@ public class Graph
         return(false)
         }
         
-    func sequentiallyColor() throws
+    func sequentiallyColorGraph() throws
         {
         // order nodes into some arbitary but staple sequence
         self.linearNodes = self.nodesOrderedById()
@@ -229,7 +228,7 @@ func main()
     graph.initGraph()
     do
         {
-        try graph.sequentiallyColor()
+        try graph.sequentiallyColorGraph()
         }
     catch let error
         {
